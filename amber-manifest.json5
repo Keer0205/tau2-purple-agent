@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1.0",
+  "name": "tau2-purple-agent",
+  "description": "Claude-powered customer service purple agent for tau2-bench",
+  "image": "ghcr.io/Keer0205/tau2-purple-agent:latest",
+  "port": 9009,
+  "type": "purple"
+}

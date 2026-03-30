@@ -1,0 +1,9 @@
+[project]
+name = "tau2-purple-agent"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "a2a-sdk>=0.2.0",
+    "uvicorn>=0.30.0",
+]
