@@ -1,5 +1,5 @@
 {
-  manifest_version: 1,
+  manifest_version: "0.1.0",
   name: "tau2-purple-agent",
   description: "Claude-powered customer service purple agent for tau2-bench",
 
