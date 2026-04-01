@@ -32,4 +32,9 @@
   },
 
   exports: { a2a: "a2a" },
+
+  metadata: {
+    assessment_config: {},
+    participant_roles: ["purple"],
+  },
 }
