@@ -7,6 +7,8 @@
   "type": "purple",
   "a2a": {
     "export": {
+      "image": "ghcr.io/keer0205/tau2-purple-agent:latest",
+      "port": 9009,
       "args": ["--host", "0.0.0.0", "--port", "9009", "--card-url", "{card_url}"]
     }
   }
