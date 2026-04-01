@@ -1,17 +1,15 @@
-name: AgentBeats Quick Submit
+name: Quick Submit
 on:
   workflow_dispatch:
     inputs:
       agentbeats_payload:
         description: 'AgentBeats payload'
         required: true
+        type: string
 jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run AgentBeats
-        uses: agentbeats/agentbeats-action@main
-        with:
-          payload: ${{ inputs.agentbeats_payload }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+  quick-submit:
+    uses: agentbeats/agentbeats/.github/workflows/quick-submit.yml@main
+    with:
+      agentbeats_payload: ${{ inputs.agentbeats_payload }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
