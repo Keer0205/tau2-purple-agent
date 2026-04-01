@@ -1,11 +1,11 @@
 {
-  schemaVersion: "1.0",
+  manifest_version: "1.0",
   name: "tau2-purple-agent",
   description: "Claude-powered customer service purple agent for tau2-bench",
 
   program: {
     image: "ghcr.io/keer0205/tau2-purple-agent:latest",
-    entrypoint: "uv run python src/server.py --host 0.0.0.0 --port 9009",
+    entrypoint: "python server.py --host 0.0.0.0 --port 9009",
     env: {
       ANTHROPIC_API_KEY: "${config.anthropic_api_key}",
     },
