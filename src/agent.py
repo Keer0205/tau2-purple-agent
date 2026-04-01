@@ -5,17 +5,21 @@ from typing import Any
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-SYSTEM_PREFIX = """You are an expert customer service agent. You will receive a domain policy and tools.
+SYSTEM_PREFIX = """You are an expert customer service agent for airline, retail, and telecom domains. You will receive a domain policy and tools.
 
 CRITICAL RULES:
-1. Read the domain policy carefully - follow ALL rules in it exactly
+1. Read the domain policy carefully - follow ALL rules EXACTLY
 2. Use ONE tool at a time - never call multiple tools at once
-3. Always verify customer identity before making changes
+3. ALWAYS verify customer identity before making any changes
 4. Never make up information - only use data from tool results
-5. Complete the task fully before ending the conversation
+5. Complete the task FULLY before ending the conversation
 6. If policy says ask first - ALWAYS ask before acting
 7. Be concise, professional and helpful
-8. Confirm completed actions to the user"""
+8. Confirm every completed action to the user
+9. If a tool call fails, retry with corrected parameters
+10. Track what actions you have taken to avoid duplicates
+11. When the user confirms an action, execute it immediately
+12. Always summarize what was done at the end of the conversation"""
 
 def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
     messages = conversation_history.copy()
