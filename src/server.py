@@ -6,6 +6,7 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, AgentCapabilities, AgentSkill
 from executor import Executor
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0")
@@ -16,19 +17,30 @@ def main():
     skill = AgentSkill(
         id="tau2-customer-service",
         name="Customer Service Agent",
-        description="Handles customer service tasks for airline, retail, and telecom domains",
+        description=(
+            "Handles customer service tasks for airline, retail, and telecom domains. "
+            "Can look up accounts, process refunds, change plans, troubleshoot issues, "
+            "and coordinate with users to fully resolve their requests."
+        ),
         tags=["customer-service", "airline", "retail", "telecom"],
-        examples=["I need to cancel my flight", "Where is my order?", "Change my phone plan"]
+        examples=[
+            "I need to cancel my flight",
+            "Where is my order?",
+            "Change my phone plan",
+            "My mobile data isn't working",
+            "I want a refund for my purchase",
+        ]
     )
 
     agent_card = AgentCard(
         name="Tau2 Purple Agent",
         description="A Claude-powered customer service agent for tau2-bench evaluation",
-        url=args.card_url or f"http://{args.host}:{args.port}/",
+        url=args.card_url or f"http://0.0.0.0:{args.port}/",
         version="1.0.0",
         default_input_modes=["text"],
         default_output_modes=["text"],
-        capabilities=AgentCapabilities(streaming=True),
+        # Streaming False — matches our non-streaming executor (fixes connection refused)
+        capabilities=AgentCapabilities(streaming=False),
         skills=[skill]
     )
 
@@ -43,6 +55,7 @@ def main():
     )
 
     uvicorn.run(server.build(), host=args.host, port=args.port)
+
 
 if __name__ == "__main__":
     main()
