@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 WORKDIR /app
-COPY pyproject.toml .
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip && \
+    pip install anthropic>=0.40.0 "a2a-sdk>=0.2.0" uvicorn>=0.30.0
 COPY src/ ./src/
 WORKDIR /app/src
 EXPOSE 9009
