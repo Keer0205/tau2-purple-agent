@@ -4,4 +4,4 @@ COPY pyproject.toml .
 RUN pip install anthropic "a2a-sdk[http-server]" uvicorn
 COPY src/ ./src/
 WORKDIR /app/src
-CMD ["python", "server.py"]
+ENTRYPOINT ["python", "server.py"]
