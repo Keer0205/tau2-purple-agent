@@ -1,4 +1,5 @@
 import logging
+import json
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.utils import new_agent_text_message
@@ -25,11 +26,17 @@ class Executor(AgentExecutor):
 
             logger.info(f"Task {task_id}: received input: {user_input[:100]}")
 
+            # Extract tools from context
+            tools = []
+            if hasattr(context, 'tools') and context.tools:
+                tools = context.tools
+                logger.info(f"Task {task_id}: found {len(tools)} tools")
+
             # Get conversation history
             history = self.conversation_history.get(task_id, [])
 
-            # Run agent
-            response_text, updated_history = run_agent(user_input, [], history)
+            # Run agent with tools
+            response_text, updated_history = run_agent(user_input, tools, history)
             self.conversation_history[task_id] = updated_history
 
             logger.info(f"Task {task_id}: response: {response_text[:100]}")
