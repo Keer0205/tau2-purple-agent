@@ -1,56 +1,39 @@
-import logging
-import json
-from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import EventQueue
-from a2a.utils import new_agent_text_message
-from agent import run_agent
+import os
+import anthropic
 
-logger = logging.getLogger(__name__)
+def get_client():
+    return anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-class Executor(AgentExecutor):
-    def __init__(self):
-        self.conversation_history = {}
+SYSTEM_PREFIX = """You are an expert customer service agent for airline, retail, and telecom domains. You will receive a domain policy and tools.
 
-    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        try:
-            task_id = context.task_id
+CRITICAL RULES:
+1. Read the domain policy carefully - follow ALL rules EXACTLY
+2. ALWAYS verify customer identity before making any changes
+3. Never make up information - only use data from tool results
+4. Complete the task FULLY before ending the conversation
+5. Be concise, professional and helpful
+6. Confirm every completed action to the user
+7. Always summarize what was done at the end of the conversation"""
 
-            user_input = ""
-            tools = []
+def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
+    messages = conversation_history.copy()
+    
+    if not messages:
+        messages = [{"role": "user", "content": task}]
+    elif task and messages[-1].get("role") != "user":
+        messages.append({"role": "user", "content": task})
 
-            if context.message and context.message.parts:
-                for part in context.message.parts:
-                    # Extract text
-                    if hasattr(part, 'root'):
-                        root = part.root
-                        if hasattr(root, 'text') and root.text:
-                            user_input += root.text
-                        # Extract tools from data part
-                        elif hasattr(root, 'data') and root.data:
-                            try:
-                                data = root.data
-                                if isinstance(data, dict) and 'tools' in data:
-                                    tools = data['tools']
-                                elif isinstance(data, list):
-                                    tools = data
-                            except Exception as e:
-                                logger.warning(f"Could not parse tools from data: {e}")
-                    elif hasattr(part, 'text') and part.text:
-                        user_input += part.text
+    response = get_client().messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4096,
+        system=SYSTEM_PREFIX,
+        messages=messages
+    )
 
-            logger.info(f"Task {task_id}: input: {user_input[:100]}, tools: {len(tools)}")
+    text_response = ""
+    for block in response.content:
+        if hasattr(block, "text"):
+            text_response += block.text
 
-            history = self.conversation_history.get(task_id, [])
-            response_text, updated_history = run_agent(user_input, tools, history)
-            self.conversation_history[task_id] = updated_history
-
-            await event_queue.enqueue_event(new_agent_text_message(response_text))
-
-        except Exception as e:
-            logger.error(f"Executor error: {e}", exc_info=True)
-            await event_queue.enqueue_event(
-                new_agent_text_message(f"I apologize, I encountered an error: {str(e)}")
-            )
-
-    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        pass
+    messages.append({"role": "assistant", "content": text_response})
+    return text_response, messages
