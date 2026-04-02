@@ -27,5 +27,3 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/keer0205/tau2-purple-agent:latest
-          build-args: |
-            ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
