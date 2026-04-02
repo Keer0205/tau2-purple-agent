@@ -1,6 +1,19 @@
 {
   manifest_version: "0.1.0",
 
+  program: {
+    image: "ghcr.io/keer0205/tau2-purple-agent:latest",
+    entrypoint: ["python", "server.py", "--host", "0.0.0.0", "--port", "9009"],
+    env: {
+      ANTHROPIC_API_KEY: "${config.anthropic_api_key}",
+    },
+    network: {
+      endpoints: [
+        { name: "endpoint", port: 9009 }
+      ]
+    },
+  },
+
   config_schema: {
     type: "object",
     properties: {
@@ -10,31 +23,11 @@
     additionalProperties: false,
   },
 
-  slots: {
-    proxy: { kind: "a2a", optional: true },
-  },
-
-  program: {
-    image: "ghcr.io/keer0205/tau2-purple-agent:latest",
-    entrypoint: "python server.py --host 0.0.0.0 --port 9009",
-    env: {
-      ANTHROPIC_API_KEY: "${config.anthropic_api_key}",
-    },
-    network: {
-      endpoints: [
-        { name: "a2a_endpoint", port: 9009 },
-      ],
-    },
-  },
-
   provides: {
-    a2a: { kind: "a2a", endpoint: "a2a_endpoint" },
+    a2a: { kind: "a2a", endpoint: "endpoint" },
   },
 
-  exports: { a2a: "a2a" },
-
-  metadata: {
-    assessment_config: {},
-    participant_roles: ["purple"],
+  exports: {
+    a2a: "a2a"
   },
 }
