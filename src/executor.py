@@ -1,11 +1,13 @@
 import os
 import logging
 import anthropic
+from typing_extensions import override
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
-from a2a.utils import new_agent_text_event
+from a2a.utils import new_agent_text_message
 
 logger = logging.getLogger(__name__)
+
 
 def get_client():
     api_key = (
@@ -14,6 +16,7 @@ def get_client():
     )
     logger.info(f"API key found: {bool(api_key)}")
     return anthropic.Anthropic(api_key=api_key)
+
 
 SYSTEM_PREFIX = """You are an expert customer service agent for airline, retail, and telecom domains.
 
@@ -48,12 +51,10 @@ def run_agent(task: str, tools: list, conversation_history: list, tool_executor=
         messages.append({"role": "user", "content": task})
 
     max_iterations = 10
+    text_response = ""
     for iteration in range(max_iterations):
         agent_llm = os.environ.get("AGENT_LLM", "anthropic/claude-3-5-sonnet-20241022")
-        if "anthropic/" in agent_llm:
-            model = agent_llm.split("/")[-1]
-        else:
-            model = "claude-3-5-sonnet-20241022"
+        model = agent_llm.split("/")[-1] if "/" in agent_llm else agent_llm
 
         kwargs = {
             "model": model,
@@ -115,21 +116,21 @@ def run_agent(task: str, tools: list, conversation_history: list, tool_executor=
 
 
 class Executor(AgentExecutor):
+    @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         task = context.get_user_input()
-        tools = []
-
         try:
             response, _ = run_agent(
                 task=task,
-                tools=tools,
+                tools=[],
                 conversation_history=[],
                 tool_executor=None,
             )
-            await event_queue.enqueue_event(new_agent_text_event(response))
+            await event_queue.enqueue_event(new_agent_text_message(response))
         except Exception as e:
             logger.error(f"Agent error: {e}")
-            await event_queue.enqueue_event(new_agent_text_event(f"Error: {str(e)}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"Error: {str(e)}"))
 
+    @override
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        pass
+        raise Exception("cancel not supported")
