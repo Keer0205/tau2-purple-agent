@@ -1,8 +1,31 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY pyproject.toml .
-RUN pip install --upgrade pip && \
-    pip install "a2a-sdk[http-server]>=0.2.0" anthropic uvicorn
-COPY src/ ./src/
-EXPOSE 9009
-CMD ["python", "-u", "src/server.py", "--host", "0.0.0.0", "--port", "9009"]
+{
+  manifest_version: "0.1.0",
+  program: {
+    image: "ghcr.io/keer0205/tau2-purple-agent:latest",
+    entrypoint: ["python", "-u", "src/server.py", "--host", "0.0.0.0", "--port", "9009"],
+    env: {
+      ANTHROPIC_API_KEY: "${config.anthropic_api_key}",
+      AGENT_LLM: "${config.agent_llm}",
+    },
+    network: {
+      endpoints: [
+        { name: "endpoint", port: 9009 }
+      ]
+    },
+  },
+  config_schema: {
+    type: "object",
+    properties: {
+      anthropic_api_key: { type: "string", secret: true },
+      agent_llm: { type: "string" },
+    },
+    required: ["anthropic_api_key", "agent_llm"],
+    additionalProperties: false,
+  },
+  provides: {
+    a2a: { kind: "a2a", endpoint: "endpoint" },
+  },
+  exports: {
+    a2a: "a2a"
+  },
+}
