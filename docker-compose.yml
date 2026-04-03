@@ -2,17 +2,12 @@ services:
   agent:
     image: ghcr.io/keer0205/tau2-purple-agent:latest
     ports:
-      - "9009:9009"
+      - "8081:9009"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    x-amber:
-      exports:
-        results:
-          published_host: agent
-          published_port: 9009
 
 x-amber:
   exports:
     results:
       published_host: agent
-      published_port: 9009
+      published_port: 8081
