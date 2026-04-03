@@ -1,6 +1,9 @@
 import os
 import logging
 import anthropic
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events import EventQueue
+from a2a.utils import new_agent_text_event
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +49,14 @@ def run_agent(task: str, tools: list, conversation_history: list, tool_executor=
 
     max_iterations = 10
     for iteration in range(max_iterations):
+        agent_llm = os.environ.get("AGENT_LLM", "anthropic/claude-3-5-sonnet-20241022")
+        if "anthropic/" in agent_llm:
+            model = agent_llm.split("/")[-1]
+        else:
+            model = "claude-3-5-sonnet-20241022"
+
         kwargs = {
-            "model": os.environ.get("AGENT_LLM", "claude-sonnet-4-5").split("/")[-1] if "anthropic" in os.environ.get("AGENT_LLM", "anthropic/claude-sonnet-4-5") else "claude-3-5-sonnet-20241022",
+            "model": model,
             "max_tokens": 4096,
             "system": SYSTEM_PREFIX,
             "messages": messages,
@@ -74,7 +83,6 @@ def run_agent(task: str, tools: list, conversation_history: list, tool_executor=
         if response.stop_reason == "end_turn" or not tool_use_blocks:
             return text_response, messages
 
-        # Execute tools via tool_executor if available
         tool_results = []
         for tool_block in tool_use_blocks:
             logger.info(f"Tool call: {tool_block.name}({tool_block.input})")
@@ -104,3 +112,24 @@ def run_agent(task: str, tools: list, conversation_history: list, tool_executor=
 
     logger.warning("Max iterations reached in agent loop")
     return text_response, messages
+
+
+class Executor(AgentExecutor):
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        task = context.get_user_input()
+        tools = []
+
+        try:
+            response, _ = run_agent(
+                task=task,
+                tools=tools,
+                conversation_history=[],
+                tool_executor=None,
+            )
+            await event_queue.enqueue_event(new_agent_text_event(response))
+        except Exception as e:
+            logger.error(f"Agent error: {e}")
+            await event_queue.enqueue_event(new_agent_text_event(f"Error: {str(e)}"))
+
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        pass
