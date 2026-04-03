@@ -1,4 +1,5 @@
 import argparse
+import socket
 import uvicorn
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -35,11 +36,10 @@ def main():
     agent_card = AgentCard(
         name="Tau2 Purple Agent",
         description="A Claude-powered customer service agent for tau2-bench evaluation",
-        url=args.card_url or f"http://0.0.0.0:{args.port}/",
+        url=args.card_url or f"http://{socket.gethostname()}:{args.port}/",
         version="1.0.0",
         default_input_modes=["text"],
         default_output_modes=["text"],
-        # Streaming False — matches our non-streaming executor (fixes connection refused)
         capabilities=AgentCapabilities(streaming=False),
         skills=[skill]
     )
