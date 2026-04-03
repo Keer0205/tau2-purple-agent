@@ -5,9 +5,8 @@ services:
       - "8081:9009"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-
-x-amber:
-  exports:
-    results:
-      published_host: agent
-      published_port: 8081
+    x-amber:
+      exports:
+        results:
+          published_host: agent
+          published_port: 8081
