@@ -2,15 +2,32 @@ import os
 import logging
 import anthropic
 
+print("PRINT_MARKER_AGENT_MODULE_LOADED_DEBUG_V4", flush=True)
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def get_client():
     api_key = (
-        os.environ.get("ANTHROPIC_API_KEY") or
-        os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
+        os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
     )
     logger.info(f"API key found: {bool(api_key)}")
+    print(f"PRINT_MARKER_API_KEY_FOUND={bool(api_key)}", flush=True)
     return anthropic.Anthropic(api_key=api_key)
+
+
+def get_model():
+    model = (
+        os.environ.get("AGENT_LLM")
+        or os.environ.get("AMBER_CONFIG_AGENT_AGENT_LLM")
+        or "anthropic/claude-3-5-sonnet-20241022"
+    )
+    logger.info(f"Using model: {model}")
+    print(f"PRINT_MARKER_AGENT_MODEL={model}", flush=True)
+    return model
+
 
 SYSTEM_PREFIX = """You are an expert customer service agent for airline, retail, and telecom domains.
 
@@ -36,8 +53,18 @@ TASK COMPLETION:
 
 
 def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
+    print("PRINT_MARKER_RUN_AGENT_ENTERED_DEBUG_V4", flush=True)
+
     client = get_client()
+    model = get_model()
     messages = conversation_history.copy()
+
+    logger.info(f"run_agent called with task: {task[:300] if task else ''}")
+    logger.info(f"run_agent tools count: {len(tools) if tools else 0}")
+    logger.info(f"run_agent history length: {len(messages)}")
+
+    print(f"PRINT_MARKER_RUN_AGENT_TOOLS_COUNT={len(tools) if tools else 0}", flush=True)
+    print(f"PRINT_MARKER_RUN_AGENT_HISTORY_LEN={len(messages)}", flush=True)
 
     if not messages:
         messages = [{"role": "user", "content": task}]
@@ -45,9 +72,13 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
         messages.append({"role": "user", "content": task})
 
     max_iterations = 10
+    text_response = ""
+
     for iteration in range(max_iterations):
+        print(f"PRINT_MARKER_AGENT_LOOP_ITERATION={iteration}", flush=True)
+
         kwargs = {
-            "model": "claude-sonnet-4-5",
+            "model": model,
             "max_tokens": 4096,
             "system": SYSTEM_PREFIX,
             "messages": messages,
@@ -55,9 +86,20 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
 
         if tools:
             kwargs["tools"] = tools
+            logger.info(f"Passing tools to Anthropic: count={len(tools)}")
+            print(f"PRINT_MARKER_TOOLS_ATTACHED_TO_MODEL count={len(tools)}", flush=True)
+        else:
+            logger.warning("No tools passed to Anthropic")
+            print("PRINT_MARKER_NO_TOOLS_ATTACHED", flush=True)
 
         response = client.messages.create(**kwargs)
-        logger.info(f"Iteration {iteration}: stop_reason={response.stop_reason}, blocks={len(response.content)}")
+        logger.info(
+            f"Iteration {iteration}: stop_reason={response.stop_reason}, blocks={len(response.content)}"
+        )
+        print(
+            f"PRINT_MARKER_AGENT_RESPONSE stop_reason={response.stop_reason} blocks={len(response.content)}",
+            flush=True,
+        )
 
         text_parts = []
         tool_use_blocks = []
@@ -65,18 +107,29 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
         for block in response.content:
             if hasattr(block, "text"):
                 text_parts.append(block.text)
-            elif block.type == "tool_use":
+            elif getattr(block, "type", None) == "tool_use":
                 tool_use_blocks.append(block)
 
         text_response = "".join(text_parts)
         messages.append({"role": "assistant", "content": response.content})
 
+        print(
+            f"PRINT_MARKER_TOOL_USE_BLOCKS count={len(tool_use_blocks)}",
+            flush=True,
+        )
+
         if response.stop_reason == "end_turn" or not tool_use_blocks:
+            logger.info("Returning final text response without more tool calls")
+            print("PRINT_MARKER_AGENT_RETURN_END_TURN", flush=True)
             return text_response, messages
 
         tool_results = []
         for tool_block in tool_use_blocks:
             logger.info(f"Tool call: {tool_block.name}({tool_block.input})")
+            print(
+                f"PRINT_MARKER_TOOL_CALL name={tool_block.name} input={tool_block.input}",
+                flush=True,
+            )
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_block.id,
@@ -86,4 +139,5 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
         messages.append({"role": "user", "content": tool_results})
 
     logger.warning("Max iterations reached in agent loop")
+    print("PRINT_MARKER_AGENT_MAX_ITERATIONS_REACHED", flush=True)
     return text_response, messages
