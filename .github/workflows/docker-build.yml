@@ -26,4 +26,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/keer0205/tau2-purple-agent:debug-v8
+          tags: ghcr.io/keer0205/tau2-purple-agent:debug-v9
