@@ -49,10 +49,14 @@ class Executor(AgentExecutor):
 
             client = anthropic.Anthropic(
                 api_key=(
-                    os.environ.get("ANTHROPIC_API_KEY") or
-                    os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
+                    os.environ.get("ANTHROPIC_API_KEY")
+                    or os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
                 )
             )
+
+            logger.info(f"DEBUG context object: {context}")
+            logger.info(f"DEBUG context attrs: {dir(context)}")
+            logger.info(f"DEBUG message object: {context.message}")
 
             response = client.messages.create(
                 model=model,
@@ -67,13 +71,15 @@ class Executor(AgentExecutor):
             try:
                 assistant_json = json.loads(assistant_content)
             except json.JSONDecodeError:
-                # Extract JSON if wrapped in markdown
                 import re
-                match = re.search(r'\{.*\}', assistant_content, re.DOTALL)
+                match = re.search(r"\{.*\}", assistant_content, re.DOTALL)
                 if match:
                     assistant_json = json.loads(match.group())
                 else:
-                    assistant_json = {"name": "respond", "arguments": {"content": assistant_content}}
+                    assistant_json = {
+                        "name": "respond",
+                        "arguments": {"content": assistant_content},
+                    }
 
             history.append({"role": "assistant", "content": assistant_content})
             logger.info(f"Response JSON: {assistant_json}")
