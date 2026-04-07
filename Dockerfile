@@ -1,9 +1,15 @@
 FROM python:3.11-slim
-WORKDIR /app
-COPY pyproject.toml .
-RUN pip install --upgrade pip && \
-    pip install "a2a-sdk[http-server]>=0.2.0" anthropic uvicorn
-COPY src/ ./src/
+
 WORKDIR /app/src
+
+COPY pyproject.toml /app/
+RUN pip install --no-cache-dir /app
+
+COPY src/ /app/src/
+
+ENV PYTHONUNBUFFERED=1
+ENV AGENT_VERSION=debug-v4
+
 EXPOSE 9009
-ENTRYPOINT ["python", "-u", "server.py", "--host", "0.0.0.0", "--port", "9009"]
+
+ENTRYPOINT ["python", "server.py"]
