@@ -1,7 +1,7 @@
 {
   manifest_version: "0.1.0",
   program: {
-    image: "ghcr.io/keer0205/tau2-purple-agent:debug-v8",
+    image: "ghcr.io/keer0205/tau2-purple-agent:debug-v9",
     entrypoint: ["python", "-u", "server.py", "--host", "0.0.0.0", "--port", "9009"],
     env: {
       ANTHROPIC_API_KEY: "${config.anthropic_api_key}",
