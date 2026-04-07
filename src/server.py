@@ -11,14 +11,14 @@ from a2a.types import AgentCard, AgentCapabilities, AgentSkill
 
 from executor import Executor
 
-print("PRINT_MARKER_SERVER_MODULE_LOADED_DEBUG_V4", flush=True)
+print("PRINT_MARKER_SERVER_MODULE_LOADED_DEBUG_V6", flush=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def main():
-    print("PRINT_MARKER_SERVER_MAIN_START_DEBUG_V4", flush=True)
+    print("PRINT_MARKER_SERVER_MAIN_START_DEBUG_V6", flush=True)
     print(f"PRINT_MARKER_AGENT_VERSION={os.getenv('AGENT_VERSION', 'unset')}", flush=True)
 
     parser = argparse.ArgumentParser()
@@ -56,8 +56,11 @@ def main():
         skills=[skill],
     )
 
+    executor = Executor()
+    print(f"PRINT_MARKER_SERVER_EXECUTOR_INSTANCE={type(executor)}", flush=True)
+
     request_handler = DefaultRequestHandler(
-        agent_executor=Executor(),
+        agent_executor=executor,
         task_store=InMemoryTaskStore(),
     )
 
