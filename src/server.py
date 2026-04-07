@@ -11,14 +11,14 @@ from a2a.types import AgentCard, AgentCapabilities, AgentSkill
 
 from executor import Executor
 
-print("PRINT_MARKER_SERVER_MODULE_LOADED_DEBUG_V6", flush=True)
+print("PRINT_MARKER_SERVER_MODULE_LOADED_DEBUG_V7", flush=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def main():
-    print("PRINT_MARKER_SERVER_MAIN_START_DEBUG_V6", flush=True)
+    print("PRINT_MARKER_SERVER_MAIN_START_DEBUG_V7", flush=True)
     print(f"PRINT_MARKER_AGENT_VERSION={os.getenv('AGENT_VERSION', 'unset')}", flush=True)
 
     parser = argparse.ArgumentParser()
@@ -69,8 +69,23 @@ def main():
         http_handler=request_handler,
     )
 
+    app = server.build()
+
+    @app.middleware("http")
+    async def log_requests(request, call_next):
+        print(
+            f"PRINT_MARKER_HTTP_REQUEST method={request.method} path={request.url.path}",
+            flush=True,
+        )
+        response = await call_next(request)
+        print(
+            f"PRINT_MARKER_HTTP_RESPONSE method={request.method} path={request.url.path} status={response.status_code}",
+            flush=True,
+        )
+        return response
+
     logger.info(f"Starting server on {args.host}:{args.port}")
-    uvicorn.run(server.build(), host=args.host, port=args.port)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
