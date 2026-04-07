@@ -1,14 +1,26 @@
 import argparse
+import logging
+import os
 import socket
+
 import uvicorn
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, AgentCapabilities, AgentSkill
+
 from executor import Executor
+
+print("PRINT_MARKER_SERVER_MODULE_LOADED_DEBUG_V4", flush=True)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def main():
+    print("PRINT_MARKER_SERVER_MAIN_START_DEBUG_V4", flush=True)
+    print(f"PRINT_MARKER_AGENT_VERSION={os.getenv('AGENT_VERSION', 'unset')}", flush=True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9009)
@@ -30,7 +42,7 @@ def main():
             "Change my phone plan",
             "My mobile data isn't working",
             "I want a refund for my purchase",
-        ]
+        ],
     )
 
     agent_card = AgentCard(
@@ -41,7 +53,7 @@ def main():
         default_input_modes=["text"],
         default_output_modes=["text"],
         capabilities=AgentCapabilities(streaming=False),
-        skills=[skill]
+        skills=[skill],
     )
 
     request_handler = DefaultRequestHandler(
@@ -54,6 +66,7 @@ def main():
         http_handler=request_handler,
     )
 
+    logger.info(f"Starting server on {args.host}:{args.port}")
     uvicorn.run(server.build(), host=args.host, port=args.port)
 
 
