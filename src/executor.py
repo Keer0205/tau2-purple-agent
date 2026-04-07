@@ -13,7 +13,6 @@ from agent import run_agent
 
 logger = logging.getLogger(__name__)
 
-# Store conversation history per task_id
 _task_histories: dict[str, list] = {}
 
 
@@ -25,11 +24,6 @@ def _safe_getattr(obj: Any, name: str, default=None):
 
 
 def _extract_tools_from_context(context: RequestContext) -> list:
-    """
-    Best-effort tool extraction from RequestContext / message payload.
-    We do not know the exact runtime shape ahead of time, so this tries
-    several common locations and logs what it finds.
-    """
     candidate_paths = [
         ("context.tools", _safe_getattr(context, "tools")),
         ("context.available_tools", _safe_getattr(context, "available_tools")),
@@ -46,7 +40,6 @@ def _extract_tools_from_context(context: RequestContext) -> list:
             return value
 
         if isinstance(value, dict):
-            # common dict containers
             for key in ["tools", "available_tools", "functions", "actions"]:
                 if isinstance(value.get(key), list):
                     logger.info(
@@ -59,9 +52,6 @@ def _extract_tools_from_context(context: RequestContext) -> list:
 
 
 def _to_action_json(text_response: str) -> dict:
-    """
-    Convert model output into the action JSON shape expected by the current executor.
-    """
     if not text_response or not text_response.strip():
         return {"name": "respond", "arguments": {"content": ""}}
 
@@ -73,6 +63,7 @@ def _to_action_json(text_response: str) -> dict:
         pass
 
     import re
+
     match = re.search(r"\{.*\}", text_response, re.DOTALL)
     if match:
         try:
@@ -108,6 +99,8 @@ class Executor(AgentExecutor):
             tools = _extract_tools_from_context(context)
             logger.info(f"DEBUG final tools count: {len(tools)}")
             logger.info(f"DEBUG final tools value: {tools}")
+
+            print("PRINT_MARKER_EXECUTOR_V2_TOOLS", tools, len(tools))
 
             text_response, updated_history = run_agent(
                 task=input_text,
