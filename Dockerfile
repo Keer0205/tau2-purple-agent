@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir /app
 COPY src/ /app/src/
 
 ENV PYTHONUNBUFFERED=1
-ENV AGENT_VERSION=debug-v7
+ENV AGENT_VERSION=debug-v8
 
 EXPOSE 9009
 
