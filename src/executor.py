@@ -1,28 +1,88 @@
 import json
-import os
 import logging
+from typing import Any
 from typing_extensions import override
 
-import anthropic
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import DataPart, Part, TaskState
 from a2a.utils import get_message_text, new_agent_text_message
 
-logger = logging.getLogger(__name__)
+from agent import run_agent
 
-SYSTEM_PROMPT = (
-    "You are a helpful customer service agent. "
-    "Follow the policy and tool instructions provided in each message. "
-    "Always respond with a JSON object with 'name' and 'arguments' fields. "
-    "To respond to the user: {\"name\": \"respond\", \"arguments\": {\"content\": \"your message\"}}. "
-    "To call a tool: {\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value1\"}}. "
-    "Only output valid JSON, nothing else."
-)
+logger = logging.getLogger(__name__)
 
 # Store conversation history per task_id
 _task_histories: dict[str, list] = {}
+
+
+def _safe_getattr(obj: Any, name: str, default=None):
+    try:
+        return getattr(obj, name, default)
+    except Exception:
+        return default
+
+
+def _extract_tools_from_context(context: RequestContext) -> list:
+    """
+    Best-effort tool extraction from RequestContext / message payload.
+    We do not know the exact runtime shape ahead of time, so this tries
+    several common locations and logs what it finds.
+    """
+    candidate_paths = [
+        ("context.tools", _safe_getattr(context, "tools")),
+        ("context.available_tools", _safe_getattr(context, "available_tools")),
+        ("context.message.tools", _safe_getattr(_safe_getattr(context, "message"), "tools")),
+        ("context.message.metadata", _safe_getattr(_safe_getattr(context, "message"), "metadata")),
+        ("context.metadata", _safe_getattr(context, "metadata")),
+    ]
+
+    for label, value in candidate_paths:
+        logger.info(f"DEBUG tool source check: {label} -> {type(value)} :: {value}")
+
+        if isinstance(value, list):
+            logger.info(f"DEBUG using tools from {label}, count={len(value)}")
+            return value
+
+        if isinstance(value, dict):
+            # common dict containers
+            for key in ["tools", "available_tools", "functions", "actions"]:
+                if isinstance(value.get(key), list):
+                    logger.info(
+                        f"DEBUG using tools from {label}['{key}'], count={len(value.get(key))}"
+                    )
+                    return value.get(key)
+
+    logger.warning("DEBUG no tools found in known context locations; defaulting to []")
+    return []
+
+
+def _to_action_json(text_response: str) -> dict:
+    """
+    Convert model output into the action JSON shape expected by the current executor.
+    """
+    if not text_response or not text_response.strip():
+        return {"name": "respond", "arguments": {"content": ""}}
+
+    try:
+        parsed = json.loads(text_response)
+        if isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    import re
+    match = re.search(r"\{.*\}", text_response, re.DOTALL)
+    if match:
+        try:
+            parsed = json.loads(match.group())
+            if isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed:
+                return parsed
+        except Exception:
+            pass
+
+    return {"name": "respond", "arguments": {"content": text_response}}
 
 
 class Executor(AgentExecutor):
@@ -32,57 +92,33 @@ class Executor(AgentExecutor):
         await updater.update_status(TaskState.working, new_agent_text_message("Thinking..."))
 
         input_text = get_message_text(context.message)
-        logger.info(f"Task {context.task_id}: received: {input_text[:200]}")
+        logger.info(f"Task {context.task_id}: received: {input_text[:500]}")
 
-        # Maintain conversation history per task
         task_id = context.task_id
         if task_id not in _task_histories:
-            _task_histories[task_id] = [{"role": "user", "content": input_text}]
-        else:
-            _task_histories[task_id].append({"role": "user", "content": input_text})
+            _task_histories[task_id] = []
 
         history = _task_histories[task_id]
 
         try:
-            agent_llm = os.environ.get("AGENT_LLM", "anthropic/claude-3-5-sonnet-20241022")
-            model = agent_llm.split("/")[-1] if "/" in agent_llm else agent_llm
-
-            client = anthropic.Anthropic(
-                api_key=(
-                    os.environ.get("ANTHROPIC_API_KEY")
-                    or os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
-                )
-            )
-
-            logger.info(f"DEBUG context object: {context}")
+            logger.info(f"DEBUG context type: {type(context)}")
             logger.info(f"DEBUG context attrs: {dir(context)}")
             logger.info(f"DEBUG message object: {context.message}")
 
-            response = client.messages.create(
-                model=model,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=history,
+            tools = _extract_tools_from_context(context)
+            logger.info(f"DEBUG final tools count: {len(tools)}")
+            logger.info(f"DEBUG final tools value: {tools}")
+
+            text_response, updated_history = run_agent(
+                task=input_text,
+                tools=tools,
+                conversation_history=history,
             )
 
-            assistant_content = response.content[0].text if response.content else "{}"
+            _task_histories[task_id] = updated_history
 
-            # Parse JSON response
-            try:
-                assistant_json = json.loads(assistant_content)
-            except json.JSONDecodeError:
-                import re
-                match = re.search(r"\{.*\}", assistant_content, re.DOTALL)
-                if match:
-                    assistant_json = json.loads(match.group())
-                else:
-                    assistant_json = {
-                        "name": "respond",
-                        "arguments": {"content": assistant_content},
-                    }
-
-            history.append({"role": "assistant", "content": assistant_content})
-            logger.info(f"Response JSON: {assistant_json}")
+            assistant_json = _to_action_json(text_response)
+            logger.info(f"DEBUG final assistant_json: {assistant_json}")
 
             await updater.add_artifact(
                 parts=[Part(root=DataPart(data=assistant_json))],
