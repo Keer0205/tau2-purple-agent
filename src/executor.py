@@ -3,7 +3,7 @@ import logging
 from typing import Any
 from typing_extensions import override
 
-print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V6", flush=True)
+print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V7", flush=True)
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -80,12 +80,12 @@ def _to_action_json(text_response: str) -> dict:
 
 class Executor(AgentExecutor):
     def __init__(self):
-        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V6", flush=True)
+        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V7", flush=True)
         super().__init__()
 
     @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V6", flush=True)
+        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V7", flush=True)
 
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.update_status(TaskState.working, new_agent_text_message("Thinking..."))
@@ -108,7 +108,7 @@ class Executor(AgentExecutor):
             logger.info(f"DEBUG final tools count: {len(tools)}")
             logger.info(f"DEBUG final tools value: {tools}")
 
-            print(f"PRINT_MARKER_EXECUTOR_V2_TOOLS count={len(tools)} tools={tools}", flush=True)
+            print(f"PRINT_MARKER_EXECUTOR_V3_TOOLS count={len(tools)} tools={tools}", flush=True)
 
             text_response, updated_history = run_agent(
                 task=input_text,
@@ -127,7 +127,7 @@ class Executor(AgentExecutor):
             )
             await updater.update_status(
                 TaskState.completed,
-                new_agent_text_message(json.dumps(assistant_json)),
+                new_agent_text_message("done"),
                 final=True,
             )
 
@@ -140,7 +140,7 @@ class Executor(AgentExecutor):
             )
             await updater.update_status(
                 TaskState.failed,
-                new_agent_text_message(str(e)),
+                new_agent_text_message("error"),
                 final=True,
             )
 
