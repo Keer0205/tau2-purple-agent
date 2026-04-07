@@ -3,6 +3,8 @@ import logging
 from typing import Any
 from typing_extensions import override
 
+print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V5", flush=True)
+
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
@@ -79,6 +81,8 @@ def _to_action_json(text_response: str) -> dict:
 class Executor(AgentExecutor):
     @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V5", flush=True)
+
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.update_status(TaskState.working, new_agent_text_message("Thinking..."))
 
