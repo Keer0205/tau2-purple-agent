@@ -100,7 +100,7 @@ class Executor(AgentExecutor):
             logger.info(f"DEBUG final tools count: {len(tools)}")
             logger.info(f"DEBUG final tools value: {tools}")
 
-            print("PRINT_MARKER_EXECUTOR_V2_TOOLS", tools, len(tools))
+            print(f"PRINT_MARKER_EXECUTOR_V2_TOOLS count={len(tools)} tools={tools}", flush=True)
 
             text_response, updated_history = run_agent(
                 task=input_text,
