@@ -1,10 +1,11 @@
 services:
   agent:
-    image: ghcr.io/keer0205/tau2-purple-agent:latest
+    image: ghcr.io/keer0205/tau2-purple-agent:debug-v4
     ports:
       - "8081:9009"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AGENT_LLM=${AGENT_LLM}
 
 x-amber:
   exports:
