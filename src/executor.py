@@ -4,7 +4,9 @@ import anthropic
 from typing_extensions import override
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
-from a2a.utils import new_agent_text_message
+from a2a.server.tasks import TaskUpdater
+from a2a.types import TaskState
+from a2a.utils import get_message_text, new_agent_text_message
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +16,10 @@ def get_client():
         os.environ.get("ANTHROPIC_API_KEY") or
         os.environ.get("AMBER_CONFIG_AGENT_ANTHROPIC_API_KEY")
     )
-    logger.info(f"API key found: {bool(api_key)}")
     return anthropic.Anthropic(api_key=api_key)
 
 
-SYSTEM_PREFIX = """You are an expert customer service agent for airline, retail, and telecom domains.
+SYSTEM_PROMPT = """You are an expert customer service agent for airline, retail, and telecom domains.
 
 CRITICAL RULES:
 1. Read the domain policy carefully - follow ALL rules EXACTLY
@@ -41,95 +42,88 @@ TASK COMPLETION:
 - Keep going until the task is fully resolved."""
 
 
-def run_agent(task: str, tools: list, conversation_history: list, tool_executor=None) -> tuple:
-    client = get_client()
-    messages = conversation_history.copy()
-
-    if not messages:
-        messages = [{"role": "user", "content": task}]
-    elif task and messages[-1].get("role") != "user":
-        messages.append({"role": "user", "content": task})
-
-    max_iterations = 10
-    text_response = ""
-    for iteration in range(max_iterations):
-        agent_llm = os.environ.get("AGENT_LLM", "anthropic/claude-3-5-sonnet-20241022")
-        model = agent_llm.split("/")[-1] if "/" in agent_llm else agent_llm
-
-        kwargs = {
-            "model": model,
-            "max_tokens": 4096,
-            "system": SYSTEM_PREFIX,
-            "messages": messages,
-        }
-
-        if tools:
-            kwargs["tools"] = tools
-
-        response = client.messages.create(**kwargs)
-        logger.info(f"Iteration {iteration}: stop_reason={response.stop_reason}, blocks={len(response.content)}")
-
-        text_parts = []
-        tool_use_blocks = []
-
-        for block in response.content:
-            if hasattr(block, "text"):
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_use_blocks.append(block)
-
-        text_response = "".join(text_parts)
-        messages.append({"role": "assistant", "content": response.content})
-
-        if response.stop_reason == "end_turn" or not tool_use_blocks:
-            return text_response, messages
-
-        tool_results = []
-        for tool_block in tool_use_blocks:
-            logger.info(f"Tool call: {tool_block.name}({tool_block.input})")
-            if tool_executor:
-                try:
-                    result = tool_executor(tool_block.name, tool_block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_block.id,
-                        "content": str(result),
-                    })
-                except Exception as e:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_block.id,
-                        "content": f"Error executing tool: {str(e)}",
-                        "is_error": True,
-                    })
-            else:
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_block.id,
-                    "content": f"Tool '{tool_block.name}' called with: {tool_block.input}",
-                })
-
-        messages.append({"role": "user", "content": tool_results})
-
-    logger.warning("Max iterations reached in agent loop")
-    return text_response, messages
+# Store conversation history per task_id
+_task_histories: dict[str, list] = {}
 
 
 class Executor(AgentExecutor):
     @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        task = context.get_user_input()
+        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
+
+        # Signal we are working
+        await updater.update_status(TaskState.working, new_agent_text_message("Processing..."))
+
+        # Get the incoming user message text
+        user_text = get_message_text(context.message)
+        logger.info(f"Task {context.task_id}: received message: {user_text[:100]}")
+
+        # Maintain conversation history per task
+        task_id = context.task_id
+        if task_id not in _task_histories:
+            _task_histories[task_id] = []
+
+        history = _task_histories[task_id]
+        history.append({"role": "user", "content": user_text})
+
         try:
-            response, _ = run_agent(
-                task=task,
-                tools=[],
-                conversation_history=[],
-                tool_executor=None,
+            client = get_client()
+            agent_llm = os.environ.get("AGENT_LLM", "anthropic/claude-3-5-sonnet-20241022")
+            model = agent_llm.split("/")[-1] if "/" in agent_llm else agent_llm
+
+            max_iterations = 10
+            response_text = ""
+
+            for iteration in range(max_iterations):
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=4096,
+                    system=SYSTEM_PROMPT,
+                    messages=history,
+                )
+                logger.info(f"Iteration {iteration}: stop_reason={response.stop_reason}")
+
+                text_parts = []
+                tool_use_blocks = []
+
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text_parts.append(block.text)
+                    elif block.type == "tool_use":
+                        tool_use_blocks.append(block)
+
+                response_text = "".join(text_parts)
+                history.append({"role": "assistant", "content": response.content})
+
+                if response.stop_reason == "end_turn" or not tool_use_blocks:
+                    break
+
+                # Handle tool calls (tau2 tools arrive as tool_use blocks)
+                tool_results = []
+                for tool_block in tool_use_blocks:
+                    logger.info(f"Tool call: {tool_block.name}({tool_block.input})")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_block.id,
+                        "content": f"Tool '{tool_block.name}' is not available in this environment.",
+                    })
+
+                history.append({"role": "user", "content": tool_results})
+
+            # Send final response
+            await updater.add_artifact(
+                parts=[{"kind": "text", "text": response_text}],
+                name="response",
             )
-            await event_queue.enqueue_event(new_agent_text_message(response))
+            await updater.update_status(TaskState.completed, new_agent_text_message(response_text), final=True)
+
         except Exception as e:
-            logger.error(f"Agent error: {e}")
-            await event_queue.enqueue_event(new_agent_text_message(f"Error: {str(e)}"))
+            logger.error(f"Agent error: {e}", exc_info=True)
+            await updater.update_status(
+                TaskState.failed,
+                new_agent_text_message(f"Error: {str(e)}"),
+                final=True,
+            )
 
     @override
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
