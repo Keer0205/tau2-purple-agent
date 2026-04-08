@@ -1,15 +1,17 @@
-name: Quick Submit
+name: Quick Submit (disabled)
+
 on:
   workflow_dispatch:
-    inputs:
-      agentbeats_payload:
-        description: 'AgentBeats payload'
-        required: true
-        type: string
+
 jobs:
-  quick-submit:
-    uses: agentbeats/agentbeats/.github/workflows/quick-submit.yml@main
-    with:
-      agentbeats_payload: ${{ inputs.agentbeats_payload }}
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  quick-submit-disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why this workflow is disabled
+        run: |
+          echo "This local quick-submit workflow is disabled."
+          echo "Reason: the old reusable workflow reference is no longer valid:"
+          echo "agentbeats/agentbeats/.github/workflows/quick-submit.yml@main"
+          echo ""
+          echo "Use the official leaderboard quick-submit flow instead."
+          exit 1
