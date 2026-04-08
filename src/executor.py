@@ -1,17 +1,16 @@
 import json
 import logging
-import re
 from typing import Any
 from typing_extensions import override
 
-print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V9", flush=True)
+print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V8", flush=True)
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import DataPart, Part, TaskState
-from a2a.utils import get_message_text, new_agent_text_message
 
+from a2a.utils import get_message_text, new_agent_text_message
 from agent import run_agent
 
 logger = logging.getLogger(__name__)
@@ -26,57 +25,7 @@ def _safe_getattr(obj: Any, name: str, default=None):
         return default
 
 
-def _extract_tool_list_from_text(task_text: str) -> list:
-    """
-    Fallback extractor for benchmarks that embed tool definitions directly
-    inside the prompt text rather than passing them via structured context.
-    """
-    if not task_text:
-        return []
-
-    marker = "Here's a list of tools you can use"
-    start_idx = task_text.find(marker)
-    if start_idx == -1:
-        return []
-
-    # Find first '[' after the marker
-    list_start = task_text.find("[", start_idx)
-    if list_start == -1:
-        return []
-
-    # Find the matching closing ']'
-    depth = 0
-    list_end = -1
-    for i in range(list_start, len(task_text)):
-        ch = task_text[i]
-        if ch == "[":
-            depth += 1
-        elif ch == "]":
-            depth -= 1
-            if depth == 0:
-                list_end = i
-                break
-
-    if list_end == -1:
-        logger.warning("DEBUG fallback tool parser could not find closing bracket")
-        return []
-
-    raw_tools_block = task_text[list_start:list_end + 1]
-
-    try:
-        parsed = json.loads(raw_tools_block)
-        if isinstance(parsed, list):
-            logger.info(
-                f"DEBUG fallback parsed tools from task text, count={len(parsed)}"
-            )
-            return parsed
-    except Exception as e:
-        logger.warning(f"DEBUG fallback tool parser failed: {e}")
-
-    return []
-
-
-def _extract_tools_from_context(context: RequestContext, task_text: str) -> list:
+def _extract_tools_from_context(context: RequestContext) -> list:
     candidate_paths = [
         ("context.tools", _safe_getattr(context, "tools")),
         ("context.available_tools", _safe_getattr(context, "available_tools")),
@@ -88,25 +37,19 @@ def _extract_tools_from_context(context: RequestContext, task_text: str) -> list
     for label, value in candidate_paths:
         logger.info(f"DEBUG tool source check: {label} -> {type(value)} :: {value}")
 
-        if isinstance(value, list) and value:
+        if isinstance(value, list):
             logger.info(f"DEBUG using tools from {label}, count={len(value)}")
             return value
 
         if isinstance(value, dict):
             for key in ["tools", "available_tools", "functions", "actions"]:
-                candidate = value.get(key)
-                if isinstance(candidate, list) and candidate:
+                if isinstance(value.get(key), list):
                     logger.info(
-                        f"DEBUG using tools from {label}['{key}'], count={len(candidate)}"
+                        f"DEBUG using tools from {label}['{key}'], count={len(value.get(key))}"
                     )
-                    return candidate
+                    return value.get(key)
 
-    logger.warning("DEBUG no structured tools found; trying fallback parse from task text")
-    parsed_tools = _extract_tool_list_from_text(task_text)
-    if parsed_tools:
-        return parsed_tools
-
-    logger.warning("DEBUG no tools found anywhere; defaulting to []")
+    logger.warning("DEBUG no tools found in known context locations; defaulting to []")
     return []
 
 
@@ -120,6 +63,8 @@ def _to_action_json(text_response: str) -> dict:
             return parsed
     except Exception:
         pass
+
+    import re
 
     match = re.search(r"\{.*\}", text_response, re.DOTALL)
     if match:
@@ -135,12 +80,12 @@ def _to_action_json(text_response: str) -> dict:
 
 class Executor(AgentExecutor):
     def __init__(self):
-        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V9", flush=True)
+        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V8", flush=True)
         super().__init__()
 
     @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V9", flush=True)
+        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V8", flush=True)
 
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.update_status(
@@ -149,7 +94,7 @@ class Executor(AgentExecutor):
         )
 
         input_text = get_message_text(context.message)
-        logger.info(f"Task {context.task_id}: received: {input_text[:1000]}")
+        logger.info(f"Task {context.task_id}: received: {input_text[:500]}")
 
         task_id = context.task_id
         if task_id not in _task_histories:
@@ -162,12 +107,12 @@ class Executor(AgentExecutor):
             logger.info(f"DEBUG context attrs: {dir(context)}")
             logger.info(f"DEBUG message object: {context.message}")
 
-            tools = _extract_tools_from_context(context, input_text)
+            tools = _extract_tools_from_context(context)
             logger.info(f"DEBUG final tools count: {len(tools)}")
             logger.info(f"DEBUG final tools value: {tools}")
 
             print(
-                f"PRINT_MARKER_EXECUTOR_V9_TOOLS count={len(tools)}",
+                f"PRINT_MARKER_EXECUTOR_V4_TOOLS count={len(tools)} tools={tools}",
                 flush=True,
             )
 
