@@ -2,7 +2,7 @@ import os
 import logging
 import anthropic
 
-print("PRINT_MARKER_AGENT_MODULE_LOADED_DEBUG_V8", flush=True)
+print("PRINT_MARKER_AGENT_MODULE_LOADED_DEBUG_V5", flush=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ Your job is to help the user complete the airline task safely and correctly in p
 
 
 def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
-    print("PRINT_MARKER_RUN_AGENT_ENTERED_DEBUG_V8", flush=True)
+    print("PRINT_MARKER_RUN_AGENT_ENTERED_DEBUG_V5", flush=True)
 
     client = get_client()
     model = get_model()
@@ -102,6 +102,7 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
 
     text_response = "".join(text_parts).strip()
 
+    # Safety cleanup: remove common accidental tool/function markup if the model emits it anyway.
     cleanup_markers = [
         "<tool_call>",
         "</tool_call>",
@@ -116,7 +117,7 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
         text_response = text_response.replace(marker, "")
 
     logger.info(f"Returning final text response length={len(text_response)}")
-    print("PRINT_MARKER_AGENT_RETURN_FINAL_TEXT_V8", flush=True)
+    print("PRINT_MARKER_AGENT_RETURN_FINAL_TEXT_V5", flush=True)
 
     messages.append({"role": "assistant", "content": text_response})
     return text_response, messages
