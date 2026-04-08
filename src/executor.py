@@ -3,14 +3,14 @@ import logging
 from typing import Any
 from typing_extensions import override
 
-print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V7", flush=True)
+print("PRINT_MARKER_EXECUTOR_MODULE_LOADED_DEBUG_V8", flush=True)
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import DataPart, Part, TaskState
-from a2a.utils import get_message_text, new_agent_text_message
 
+from a2a.utils import get_message_text, new_agent_text_message
 from agent import run_agent
 
 logger = logging.getLogger(__name__)
@@ -80,15 +80,18 @@ def _to_action_json(text_response: str) -> dict:
 
 class Executor(AgentExecutor):
     def __init__(self):
-        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V7", flush=True)
+        print("PRINT_MARKER_EXECUTOR_INIT_DEBUG_V8", flush=True)
         super().__init__()
 
     @override
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V7", flush=True)
+        print("PRINT_MARKER_EXECUTOR_EXECUTE_ENTERED_DEBUG_V8", flush=True)
 
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
-        await updater.update_status(TaskState.working, new_agent_text_message("Thinking..."))
+        await updater.update_status(
+            TaskState.working,
+            new_agent_text_message("Thinking..."),
+        )
 
         input_text = get_message_text(context.message)
         logger.info(f"Task {context.task_id}: received: {input_text[:500]}")
@@ -108,7 +111,10 @@ class Executor(AgentExecutor):
             logger.info(f"DEBUG final tools count: {len(tools)}")
             logger.info(f"DEBUG final tools value: {tools}")
 
-            print(f"PRINT_MARKER_EXECUTOR_V3_TOOLS count={len(tools)} tools={tools}", flush=True)
+            print(
+                f"PRINT_MARKER_EXECUTOR_V4_TOOLS count={len(tools)} tools={tools}",
+                flush=True,
+            )
 
             text_response, updated_history = run_agent(
                 task=input_text,
@@ -125,22 +131,27 @@ class Executor(AgentExecutor):
                 parts=[Part(root=DataPart(data=assistant_json))],
                 name="Action",
             )
+
             await updater.update_status(
                 TaskState.completed,
-                new_agent_text_message("done"),
                 final=True,
             )
 
         except Exception as e:
             logger.error(f"Agent error: {e}", exc_info=True)
-            fallback = {"name": "respond", "arguments": {"content": f"Error: {str(e)}"}}
+
+            fallback = {
+                "name": "respond",
+                "arguments": {"content": f"Error: {str(e)}"},
+            }
+
             await updater.add_artifact(
                 parts=[Part(root=DataPart(data=fallback))],
                 name="Action",
             )
+
             await updater.update_status(
                 TaskState.failed,
-                new_agent_text_message("error"),
                 final=True,
             )
 
