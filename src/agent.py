@@ -2,7 +2,7 @@ import os
 import logging
 import anthropic
 
-print("PRINT_MARKER_AGENT_MODULE_LOADED_DEBUG_V5", flush=True)
+print("PRINT_MARKER_AGENT_MODULE_LOADED_DEBUG_V6", flush=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,12 +47,24 @@ Follow these rules exactly:
 13. Prefer completing the user’s requested airline task over asking general follow-up questions.
 14. If the user asks to cancel, modify, refund, add bags, or change seats, move the task forward as far as policy allows in the same turn.
 
+Critical behavior rules:
+15. Treat any identifier already present in the task or conversation as already provided by the user. Do not ask for it again.
+16. Identifiers that count as already provided include things like: user ID, reservation ID, booking reference, confirmation number, ticket number, email, phone number, date of birth, passenger name, and last name.
+17. If the user cannot provide your preferred verification item but offers another plausible identifier already in the conversation, adapt immediately and use that to move the task forward as far as possible.
+18. Do not repeat the same verification request in slightly different words if the user has already answered or explained they do not have that item.
+19. If tools are unavailable, be honest about that limitation, but still use all details already present in the conversation to give the best next-step help.
+20. If tools are unavailable and you cannot complete the action directly, ask for the single best missing detail most likely to unblock the task. Do not ask for a list unless truly necessary.
+21. If a user ID, reservation ID, booking reference, or ticket number is already present, prefer using that context over asking for unrelated extra identity details.
+22. Avoid generic openers like “How can I help you today?” when the user’s request is already clear.
+23. When enough context is already present, respond with action-oriented help, not a reset or restart of the conversation.
+24. Never ignore a useful identifier that appears in the current user message or earlier conversation history.
+
 Your job is to help the user complete the airline task safely and correctly in plain text.
 """
 
 
 def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
-    print("PRINT_MARKER_RUN_AGENT_ENTERED_DEBUG_V5", flush=True)
+    print("PRINT_MARKER_RUN_AGENT_ENTERED_DEBUG_V6", flush=True)
 
     client = get_client()
     model = get_model()
@@ -116,7 +128,7 @@ def run_agent(task: str, tools: list, conversation_history: list) -> tuple:
         text_response = text_response.replace(marker, "")
 
     logger.info(f"Returning final text response length={len(text_response)}")
-    print("PRINT_MARKER_AGENT_RETURN_FINAL_TEXT_V5", flush=True)
+    print("PRINT_MARKER_AGENT_RETURN_FINAL_TEXT_V6", flush=True)
 
     messages.append({"role": "assistant", "content": text_response})
     return text_response, messages
